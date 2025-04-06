@@ -29,6 +29,13 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, disabled }) => {
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
+      
+      // Restore focus to the textarea after sending
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+        }
+      }, 0);
     }
   };
 
