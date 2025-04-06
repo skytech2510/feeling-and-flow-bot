@@ -13,11 +13,19 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, disabled }) => {
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Focus the textarea whenever the component mounts or updates
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.focus();
     }
   }, []);
+
+  // Re-focus when disabled state changes
+  useEffect(() => {
+    if (!disabled && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [disabled]);
 
   const handleSend = () => {
     const trimmedMessage = message.trim();
@@ -54,6 +62,16 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, disabled }) => {
     }
   };
 
+  const handleBlur = () => {
+    // When the textarea loses focus, focus it again after a short delay
+    // This helps with situations where clicking other UI elements might steal focus
+    setTimeout(() => {
+      if (textareaRef.current && !disabled) {
+        textareaRef.current.focus();
+      }
+    }, 100);
+  };
+
   return (
     <div className="border rounded-lg flex items-end bg-white shadow-sm">
       <Textarea
@@ -62,6 +80,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, disabled }) => {
         onChange={(e) => setMessage(e.target.value)}
         onKeyDown={handleKeyDown}
         onInput={handleInput}
+        onBlur={handleBlur}
         placeholder="Type your message..."
         className="min-h-[50px] max-h-[200px] resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 py-3 px-4"
         disabled={disabled}
