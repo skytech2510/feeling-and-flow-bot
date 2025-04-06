@@ -73,14 +73,14 @@ const ChatUI: React.FC = () => {
             <div className="flex flex-col gap-2 mt-2 max-w-xs">
               <Button 
                 variant="outline" 
-                className="justify-start border-bot hover:bg-bot-light"
+                className="justify-start border-gray-300 hover:bg-gray-50"
                 onClick={() => handlePathSelection('feeling')}
               >
                 How you feel
               </Button>
               <Button 
                 variant="outline" 
-                className="justify-start border-bot hover:bg-bot-light"
+                className="justify-start border-gray-300 hover:bg-gray-50"
                 onClick={() => handlePathSelection('goal')}
               >
                 Start with a goal
@@ -89,7 +89,7 @@ const ChatUI: React.FC = () => {
           )}
           
           {isTyping && (
-            <div className="self-start bg-bot-light text-gray-800 py-3 px-4 max-w-[85%] rounded-lg mb-2 rounded-bl-none animate-pulse">
+            <div className="self-start bg-gray-100 text-gray-800 py-3 px-4 max-w-[85%] rounded-lg mb-2 rounded-bl-none animate-pulse">
               Typing...
             </div>
           )}

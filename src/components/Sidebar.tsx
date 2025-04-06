@@ -26,7 +26,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobile = false }) => {
   return (
     <div 
       className={cn(
-        "flex flex-col h-full bg-white border-r",
+        "flex flex-col h-full bg-gray-50 border-r",
         isMobile ? (
           isMobileSidebarOpen 
             ? "fixed inset-y-0 left-0 z-50 w-64 animate-slide-in" 
@@ -50,7 +50,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobile = false }) => {
             variant={currentSessionId === session.id ? "secondary" : "ghost"}
             className={cn(
               "w-full justify-start mb-1 text-left",
-              currentSessionId === session.id ? "bg-bot-light" : ""
+              currentSessionId === session.id ? "bg-gray-200" : ""
             )}
             onClick={() => switchSession(session.id)}
           >
@@ -63,7 +63,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobile = false }) => {
       <div className="p-4 border-t">
         <Button 
           onClick={createNewSession} 
-          className="w-full"
+          className="w-full bg-blue-600 hover:bg-blue-700"
         >
           <Plus className="mr-2 h-4 w-4" />
           New Chat
