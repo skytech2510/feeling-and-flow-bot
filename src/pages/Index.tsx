@@ -38,6 +38,10 @@ const ChatUI: React.FC = () => {
     setIsMobileSidebarOpen(true);
   };
 
+  // Determine if input should be disabled
+  // We no longer want to disable input when waiting for restart confirmation (steps 5 and 6)
+  const isInputDisabled = isTyping;
+
   return (
     <div className="flex h-full">
       {/* Desktop Sidebar */}
@@ -96,7 +100,7 @@ const ChatUI: React.FC = () => {
         <div className="p-4 border-t">
           <ChatInput 
             onSendMessage={handleSendMessage} 
-            disabled={isTyping || (currentSession?.currentStep === 5 && currentSession?.path === 'feeling') || (currentSession?.currentStep === 6 && currentSession?.path === 'goal')} 
+            disabled={isInputDisabled} 
           />
         </div>
       </div>
