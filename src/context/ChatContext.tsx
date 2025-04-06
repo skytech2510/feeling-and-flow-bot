@@ -99,9 +99,108 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }));
   };
 
+  // Check if user wants to start a new conversation after completing the previous one
+  const handleConversationRestart = (content: string) => {
+    const lowerContent = content.toLowerCase().trim();
+    const positiveResponses = ['yes', 'ok', 'sure', 'yeah', 'yep', 'start', 'again', 'restart', 'continue'];
+    
+    if (positiveResponses.some(response => lowerContent.includes(response))) {
+      // User wants to start again
+      const newMessageId = Date.now().toString();
+      const newMessage: ChatMessage = {
+        id: newMessageId,
+        role: 'bot',
+        content: 'How do you want to start today?\n\n1. How you feel\n2. Start with a goal',
+        timestamp: new Date(),
+      };
+
+      setSessions(prev => prev.map(session => {
+        if (session.id === currentSessionId) {
+          return {
+            ...session,
+            currentStep: 0,
+            path: null,
+            messages: [...session.messages, newMessage],
+            updatedAt: new Date(),
+          };
+        }
+        return session;
+      }));
+      
+      return true;
+    } else {
+      // User doesn't want to continue
+      const goodbyeMessages = [
+        "Thank you for chatting with me today! Take care and come back anytime.",
+        "It was great talking with you. Wishing you a wonderful day ahead!",
+        "Thanks for the conversation. Hope to chat with you again soon!",
+        "I enjoyed our talk. Have a lovely day and see you next time!"
+      ];
+      
+      const randomGoodbye = goodbyeMessages[Math.floor(Math.random() * goodbyeMessages.length)];
+      
+      const newMessageId = Date.now().toString();
+      const newMessage: ChatMessage = {
+        id: newMessageId,
+        role: 'bot',
+        content: randomGoodbye,
+        timestamp: new Date(),
+      };
+
+      setSessions(prev => prev.map(session => {
+        if (session.id === currentSessionId) {
+          return {
+            ...session,
+            messages: [...session.messages, newMessage],
+            updatedAt: new Date(),
+          };
+        }
+        return session;
+      }));
+      
+      return true;
+    }
+  };
+
   // Handle sending a message
   const sendMessage = (content: string) => {
     if (!currentSessionId || !currentSession) return;
+
+    // Check if we're waiting for a restart confirmation
+    if ((currentSession.path === 'feeling' && currentSession.currentStep === 5) ||
+        (currentSession.path === 'goal' && currentSession.currentStep === 6)) {
+      
+      // Add user message first
+      const userMessageId = Date.now().toString();
+      setSessions(prev => prev.map(session => {
+        if (session.id === currentSessionId) {
+          return {
+            ...session,
+            messages: [
+              ...session.messages,
+              {
+                id: userMessageId,
+                role: 'user',
+                content,
+                timestamp: new Date(),
+              }
+            ],
+            updatedAt: new Date(),
+          };
+        }
+        return session;
+      }));
+      
+      setIsTyping(true);
+      
+      // Process the restart response after a delay
+      setTimeout(() => {
+        const wasHandled = handleConversationRestart(content);
+        setIsTyping(false);
+      }, 1000);
+      
+      return;
+    }
 
     // Add user message
     const userMessageId = Date.now().toString();
@@ -167,6 +266,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           case 4: // Final response based on their feelings
             botResponse = findBestResponse(content, 'feeling');
             newStep = 5;
+            // Add a prompt to start again
+            botResponse += "\n\nWould you like to start another conversation? (yes/no)";
             break;
           default:
             botResponse = findBestResponse(content, 'feeling');
@@ -194,6 +295,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           case 5: // Final response based on their goal
             botResponse = findBestResponse(content, 'goal');
             newStep = 6;
+            // Add a prompt to start again
+            botResponse += "\n\nWould you like to start another conversation? (yes/no)";
             break;
           default:
             botResponse = findBestResponse(content, 'goal');
