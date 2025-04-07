@@ -2,7 +2,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Plus, X, MessageSquare } from 'lucide-react';
+import { Plus, X, MessageSquare, Check } from 'lucide-react';
 import { useChat } from '@/context/ChatContext';
 
 interface SidebarProps {
@@ -16,7 +16,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobile = false }) => {
     createNewSession, 
     switchSession,
     isMobileSidebarOpen,
-    setIsMobileSidebarOpen
+    setIsMobileSidebarOpen,
+    showCycleCheck,
+    cycleFeeling,
+    cycleQuestion,
+    handleCycleResponse
   } = useChat();
 
   const handleCloseSidebar = () => {
@@ -60,7 +64,33 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobile = false }) => {
         ))}
       </div>
       
-      <div className="p-4 border-t">
+      {showCycleCheck && (
+        <div className="p-4 border-t border-b bg-gray-100">
+          <div className="mb-3">
+            <p className="text-sm font-medium mb-2">{`Do you still feel ${cycleFeeling}?`}</p>
+            <div className="flex space-x-2">
+              <Button 
+                onClick={() => handleCycleResponse(true)} 
+                variant="outline"
+                className="flex-1"
+              >
+                <Check className="mr-1 h-4 w-4" />
+                Yes
+              </Button>
+              <Button 
+                onClick={() => handleCycleResponse(false)} 
+                variant="outline"
+                className="flex-1"
+              >
+                <X className="mr-1 h-4 w-4" />
+                No
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <div className="p-4 border-t mt-auto">
         <Button 
           onClick={createNewSession} 
           className="w-full bg-blue-600 hover:bg-blue-700"

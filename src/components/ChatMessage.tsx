@@ -1,7 +1,8 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ChatMessage as ChatMessageType } from '../types/chat';
 import { cn } from '@/lib/utils';
+import { useChat } from '@/context/ChatContext';
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -9,6 +10,14 @@ interface ChatMessageProps {
 
 const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   const isBot = message.role === 'bot';
+  const { storeMessageContent } = useChat();
+  
+  // Store message content for reference in the cycle function
+  useEffect(() => {
+    if (message.content && message.role === 'user') {
+      storeMessageContent(message.id, message.content);
+    }
+  }, [message.id, message.content, message.role, storeMessageContent]);
   
   return (
     <div 
