@@ -12,26 +12,47 @@ interface ChatInputProps {
 const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, disabled }) => {
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [userHasClickedOutside, setUserHasClickedOutside] = useState(false);
 
   // Focus the textarea whenever the component mounts or updates
   useEffect(() => {
-    if (textareaRef.current) {
+    if (textareaRef.current && !disabled && !userHasClickedOutside) {
       textareaRef.current.focus();
     }
-  }, []);
+  }, [disabled, userHasClickedOutside]);
 
   // Re-focus when disabled state changes
   useEffect(() => {
-    if (!disabled && textareaRef.current) {
+    if (!disabled && textareaRef.current && !userHasClickedOutside) {
       textareaRef.current.focus();
     }
-  }, [disabled]);
+  }, [disabled, userHasClickedOutside]);
+
+  // Add event listeners for click outside detection
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        textareaRef.current && 
+        !textareaRef.current.contains(event.target as Node) &&
+        !(event.target as Element).closest('button')
+      ) {
+        setUserHasClickedOutside(true);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const handleSend = () => {
     const trimmedMessage = message.trim();
     if (trimmedMessage && !disabled) {
       onSendMessage(trimmedMessage);
       setMessage('');
+      setUserHasClickedOutside(false);
       
       // Reset textarea height
       if (textareaRef.current) {
@@ -62,14 +83,8 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, disabled }) => {
     }
   };
 
-  const handleBlur = () => {
-    // When the textarea loses focus, focus it again after a short delay
-    // This helps with situations where clicking other UI elements might steal focus
-    setTimeout(() => {
-      if (textareaRef.current && !disabled) {
-        textareaRef.current.focus();
-      }
-    }, 100);
+  const handleFocus = () => {
+    setUserHasClickedOutside(false);
   };
 
   return (
@@ -80,7 +95,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSendMessage, disabled }) => {
         onChange={(e) => setMessage(e.target.value)}
         onKeyDown={handleKeyDown}
         onInput={handleInput}
-        onBlur={handleBlur}
+        onFocus={handleFocus}
         placeholder="Type your message..."
         className="min-h-[50px] max-h-[200px] resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 py-3 px-4"
         disabled={disabled}

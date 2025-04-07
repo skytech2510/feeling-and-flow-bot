@@ -15,6 +15,10 @@ interface ChatContextType {
   isTyping: boolean;
   isMobileSidebarOpen: boolean;
   setIsMobileSidebarOpen: (isOpen: boolean) => void;
+  startCycleCheck: () => void;
+  isCycleActive: boolean;
+  handleCycleResponse: (isStillFeeling: boolean) => void;
+  cycleStep: 'primary' | 'secondary' | null;
 }
 
 // Create the context
@@ -26,6 +30,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isCycleActive, setIsCycleActive] = useState(false);
+  const [cycleStep, setCycleStep] = useState<'primary' | 'secondary' | null>(null);
 
   // Initialize a session on first load
   useEffect(() => {
@@ -58,12 +64,192 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setSessions(prev => [...prev, newSession]);
     setCurrentSessionId(newSessionId);
+    setIsCycleActive(false);
+    setCycleStep(null);
   };
 
   // Switch to a different session
   const switchSession = (sessionId: string) => {
     setCurrentSessionId(sessionId);
     setIsMobileSidebarOpen(false);
+    setIsCycleActive(false);
+    setCycleStep(null);
+  };
+
+  // Get user's first and second answers for cycle questioning
+  const getUserAnswers = () => {
+    if (!currentSession) return { primaryFeeling: '', secondaryDescription: '' };
+    
+    const userMessages = currentSession.messages.filter(msg => msg.role === 'user');
+    
+    let primaryFeeling = '';
+    let secondaryDescription = '';
+    
+    // For the feeling path, the first answer is the primary feeling
+    if (currentSession.path === 'feeling' && userMessages.length >= 1) {
+      primaryFeeling = userMessages[0].content;
+      
+      // The second answer is the description of that feeling
+      if (userMessages.length >= 2) {
+        secondaryDescription = userMessages[1].content;
+      }
+    }
+    
+    // For the goal path, the first answer is what they want to achieve
+    // and the second is what achieving it would feel like
+    else if (currentSession.path === 'goal' && userMessages.length >= 2) {
+      primaryFeeling = userMessages[1].content;
+      
+      if (userMessages.length >= 3) {
+        secondaryDescription = userMessages[2].content;
+      }
+    }
+    
+    return { primaryFeeling, secondaryDescription };
+  };
+
+  // Start the cycle check process
+  const startCycleCheck = () => {
+    if (!currentSession) return;
+    
+    const { secondaryDescription } = getUserAnswers();
+    
+    if (!secondaryDescription) return;
+    
+    setIsTyping(true);
+    setCycleStep('secondary');
+    setIsCycleActive(true);
+    
+    setTimeout(() => {
+      const botMessageId = Date.now().toString();
+      setSessions(prev => prev.map(session => {
+        if (session.id === currentSessionId) {
+          return {
+            ...session,
+            messages: [
+              ...session.messages,
+              {
+                id: botMessageId,
+                role: 'bot',
+                content: `Do you still feel ${secondaryDescription}?`,
+                timestamp: new Date(),
+              }
+            ],
+            updatedAt: new Date(),
+          };
+        }
+        return session;
+      }));
+      setIsTyping(false);
+    }, 1000);
+  };
+
+  // Handle user's response to a cycle question
+  const handleCycleResponse = (isStillFeeling: boolean) => {
+    if (!currentSession) return;
+    
+    const { primaryFeeling, secondaryDescription } = getUserAnswers();
+    
+    setIsTyping(true);
+    
+    setTimeout(() => {
+      const botMessageId = Date.now().toString();
+      
+      // If they still have the secondary feeling, ask the same question again
+      if (cycleStep === 'secondary' && isStillFeeling) {
+        setSessions(prev => prev.map(session => {
+          if (session.id === currentSessionId) {
+            return {
+              ...session,
+              messages: [
+                ...session.messages,
+                {
+                  id: botMessageId,
+                  role: 'bot',
+                  content: `Do you still feel ${secondaryDescription}?`,
+                  timestamp: new Date(),
+                }
+              ],
+              updatedAt: new Date(),
+            };
+          }
+          return session;
+        }));
+        setIsTyping(false);
+      } 
+      // If they no longer have the secondary feeling, ask about primary feeling
+      else if (cycleStep === 'secondary' && !isStillFeeling) {
+        setCycleStep('primary');
+        setSessions(prev => prev.map(session => {
+          if (session.id === currentSessionId) {
+            return {
+              ...session,
+              messages: [
+                ...session.messages,
+                {
+                  id: botMessageId,
+                  role: 'bot',
+                  content: `Do you still feel ${primaryFeeling}?`,
+                  timestamp: new Date(),
+                }
+              ],
+              updatedAt: new Date(),
+            };
+          }
+          return session;
+        }));
+        setIsTyping(false);
+      }
+      // If they still have the primary feeling, go back to asking what it feels like
+      else if (cycleStep === 'primary' && isStillFeeling) {
+        setSessions(prev => prev.map(session => {
+          if (session.id === currentSessionId) {
+            return {
+              ...session,
+              messages: [
+                ...session.messages,
+                {
+                  id: botMessageId,
+                  role: 'bot',
+                  content: `Feel ${primaryFeeling} — what does ${primaryFeeling} feel like?`,
+                  timestamp: new Date(),
+                }
+              ],
+              updatedAt: new Date(),
+              currentStep: 2, // Reset to the step where we ask what the feeling feels like
+            };
+          }
+          return session;
+        }));
+        setCycleStep(null);
+        setIsCycleActive(false);
+        setIsTyping(false);
+      }
+      // If they no longer have the primary feeling, ask how they're feeling now
+      else if (cycleStep === 'primary' && !isStillFeeling) {
+        setSessions(prev => prev.map(session => {
+          if (session.id === currentSessionId) {
+            return {
+              ...session,
+              messages: [
+                ...session.messages,
+                {
+                  id: botMessageId,
+                  role: 'bot',
+                  content: "How are you feeling about this now?",
+                  timestamp: new Date(),
+                }
+              ],
+              updatedAt: new Date(),
+            };
+          }
+          return session;
+        }));
+        setCycleStep(null);
+        setIsCycleActive(false);
+        setIsTyping(false);
+      }
+    }, 1000);
   };
 
   // Select conversation path (feeling or goal)
@@ -256,16 +442,19 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             newStep = 2;
             break;
           case 2: // After user describes what the feeling feels like
-            botResponse = "What would the opposite of that feel like? How do you want to feel?";
+            botResponse = "How are you feeling about this now?";
             newStep = 3;
             break;
-          case 3: // After user shares how they want to feel
-            botResponse = `What would it feel like to feel ${content}?`;
+          case 3: // After user shares how they're feeling now
+            botResponse = "What would the opposite of that feel like? How do you want to feel?";
             newStep = 4;
             break;
-          case 4: // Final response based on their feelings
-            botResponse = findBestResponse(content, 'feeling');
+          case 4: // After user shares how they want to feel
+            botResponse = `What would it feel like to feel ${content}?`;
             newStep = 5;
+            break;
+          case 5: // Final response based on their feelings
+            botResponse = findBestResponse(content, 'feeling');
             // Add a prompt to start again
             botResponse += "\n\nWould you like to start another conversation? (yes/no)";
             break;
@@ -285,16 +474,19 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             newStep = 3;
             break;
           case 3: // After user describes that feeling
-            botResponse = "What would the opposite of that feel like? How do you want to feel?";
+            botResponse = "How are you feeling about this now?";
             newStep = 4;
             break;
-          case 4: // After user describes how they want to feel
-            botResponse = `Feel ${content} — what does ${content} feel like?`;
+          case 4: // After user describes how they're feeling now
+            botResponse = "What would the opposite of that feel like? How do you want to feel?";
             newStep = 5;
             break;
-          case 5: // Final response based on their goal
-            botResponse = findBestResponse(content, 'goal');
+          case 5: // After user describes how they want to feel
+            botResponse = `Feel ${content} — what does ${content} feel like?`;
             newStep = 6;
+            break;
+          case 6: // Final response based on their goal
+            botResponse = findBestResponse(content, 'goal');
             // Add a prompt to start again
             botResponse += "\n\nWould you like to start another conversation? (yes/no)";
             break;
@@ -340,6 +532,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isTyping,
     isMobileSidebarOpen,
     setIsMobileSidebarOpen,
+    startCycleCheck,
+    isCycleActive,
+    handleCycleResponse,
+    cycleStep
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
