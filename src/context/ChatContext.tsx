@@ -15,10 +15,6 @@ interface ChatContextType {
   isTyping: boolean;
   isMobileSidebarOpen: boolean;
   setIsMobileSidebarOpen: (isOpen: boolean) => void;
-  startCycleCheck: () => void;
-  isCycleActive: boolean;
-  handleCycleResponse: (isStillFeeling: boolean) => void;
-  cycleStep: 'primary' | 'secondary' | null;
 }
 
 // Create the context
@@ -30,8 +26,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isCycleActive, setIsCycleActive] = useState(false);
-  const [cycleStep, setCycleStep] = useState<'primary' | 'secondary' | null>(null);
+  const [isCreatingNewSession, setIsCreatingNewSession] = useState(false);
 
   // Initialize a session on first load
   useEffect(() => {
@@ -47,6 +42,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Create a new chat session
   const createNewSession = () => {
+    // Prevent duplicate session creation
+    if (isCreatingNewSession) return;
+    
+    setIsCreatingNewSession(true);
+    
     const newSessionId = Date.now().toString();
     const newSession: ChatSession = {
       id: newSessionId,
@@ -64,192 +64,17 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setSessions(prev => [...prev, newSession]);
     setCurrentSessionId(newSessionId);
-    setIsCycleActive(false);
-    setCycleStep(null);
+    
+    // Reset the flag after a small delay to prevent rapid multiple calls
+    setTimeout(() => {
+      setIsCreatingNewSession(false);
+    }, 300);
   };
 
   // Switch to a different session
   const switchSession = (sessionId: string) => {
     setCurrentSessionId(sessionId);
     setIsMobileSidebarOpen(false);
-    setIsCycleActive(false);
-    setCycleStep(null);
-  };
-
-  // Get user's first and second answers for cycle questioning
-  const getUserAnswers = () => {
-    if (!currentSession) return { primaryFeeling: '', secondaryDescription: '' };
-    
-    const userMessages = currentSession.messages.filter(msg => msg.role === 'user');
-    
-    let primaryFeeling = '';
-    let secondaryDescription = '';
-    
-    // For the feeling path, the first answer is the primary feeling
-    if (currentSession.path === 'feeling' && userMessages.length >= 1) {
-      primaryFeeling = userMessages[0].content;
-      
-      // The second answer is the description of that feeling
-      if (userMessages.length >= 2) {
-        secondaryDescription = userMessages[1].content;
-      }
-    }
-    
-    // For the goal path, the first answer is what they want to achieve
-    // and the second is what achieving it would feel like
-    else if (currentSession.path === 'goal' && userMessages.length >= 2) {
-      primaryFeeling = userMessages[1].content;
-      
-      if (userMessages.length >= 3) {
-        secondaryDescription = userMessages[2].content;
-      }
-    }
-    
-    return { primaryFeeling, secondaryDescription };
-  };
-
-  // Start the cycle check process
-  const startCycleCheck = () => {
-    if (!currentSession) return;
-    
-    const { secondaryDescription } = getUserAnswers();
-    
-    if (!secondaryDescription) return;
-    
-    setIsTyping(true);
-    setCycleStep('secondary');
-    setIsCycleActive(true);
-    
-    setTimeout(() => {
-      const botMessageId = Date.now().toString();
-      setSessions(prev => prev.map(session => {
-        if (session.id === currentSessionId) {
-          return {
-            ...session,
-            messages: [
-              ...session.messages,
-              {
-                id: botMessageId,
-                role: 'bot',
-                content: `Do you still feel ${secondaryDescription}?`,
-                timestamp: new Date(),
-              }
-            ],
-            updatedAt: new Date(),
-          };
-        }
-        return session;
-      }));
-      setIsTyping(false);
-    }, 1000);
-  };
-
-  // Handle user's response to a cycle question
-  const handleCycleResponse = (isStillFeeling: boolean) => {
-    if (!currentSession) return;
-    
-    const { primaryFeeling, secondaryDescription } = getUserAnswers();
-    
-    setIsTyping(true);
-    
-    setTimeout(() => {
-      const botMessageId = Date.now().toString();
-      
-      // If they still have the secondary feeling, ask the same question again
-      if (cycleStep === 'secondary' && isStillFeeling) {
-        setSessions(prev => prev.map(session => {
-          if (session.id === currentSessionId) {
-            return {
-              ...session,
-              messages: [
-                ...session.messages,
-                {
-                  id: botMessageId,
-                  role: 'bot',
-                  content: `Do you still feel ${secondaryDescription}?`,
-                  timestamp: new Date(),
-                }
-              ],
-              updatedAt: new Date(),
-            };
-          }
-          return session;
-        }));
-        setIsTyping(false);
-      } 
-      // If they no longer have the secondary feeling, ask about primary feeling
-      else if (cycleStep === 'secondary' && !isStillFeeling) {
-        setCycleStep('primary');
-        setSessions(prev => prev.map(session => {
-          if (session.id === currentSessionId) {
-            return {
-              ...session,
-              messages: [
-                ...session.messages,
-                {
-                  id: botMessageId,
-                  role: 'bot',
-                  content: `Do you still feel ${primaryFeeling}?`,
-                  timestamp: new Date(),
-                }
-              ],
-              updatedAt: new Date(),
-            };
-          }
-          return session;
-        }));
-        setIsTyping(false);
-      }
-      // If they still have the primary feeling, go back to asking what it feels like
-      else if (cycleStep === 'primary' && isStillFeeling) {
-        setSessions(prev => prev.map(session => {
-          if (session.id === currentSessionId) {
-            return {
-              ...session,
-              messages: [
-                ...session.messages,
-                {
-                  id: botMessageId,
-                  role: 'bot',
-                  content: `Feel ${primaryFeeling} — what does ${primaryFeeling} feel like?`,
-                  timestamp: new Date(),
-                }
-              ],
-              updatedAt: new Date(),
-              currentStep: 2, // Reset to the step where we ask what the feeling feels like
-            };
-          }
-          return session;
-        }));
-        setCycleStep(null);
-        setIsCycleActive(false);
-        setIsTyping(false);
-      }
-      // If they no longer have the primary feeling, ask how they're feeling now
-      else if (cycleStep === 'primary' && !isStillFeeling) {
-        setSessions(prev => prev.map(session => {
-          if (session.id === currentSessionId) {
-            return {
-              ...session,
-              messages: [
-                ...session.messages,
-                {
-                  id: botMessageId,
-                  role: 'bot',
-                  content: "How are you feeling about this now?",
-                  timestamp: new Date(),
-                }
-              ],
-              updatedAt: new Date(),
-            };
-          }
-          return session;
-        }));
-        setCycleStep(null);
-        setIsCycleActive(false);
-        setIsTyping(false);
-      }
-    }, 1000);
   };
 
   // Select conversation path (feeling or goal)
@@ -344,9 +169,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return session;
       }));
       
-      // After sending goodbye message, create a new session automatically
+      // After sending goodbye message, create a new session automatically after a delay
       setTimeout(() => {
-        createNewSession();
+        // Only create a new session if we haven't created one already
+        if (!isCreatingNewSession) {
+          createNewSession();
+        }
       }, 1500);
       
       return true;
@@ -386,7 +214,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Process the restart response after a delay
       setTimeout(() => {
-        const wasHandled = handleConversationRestart(content);
+        handleConversationRestart(content);
         setIsTyping(false);
       }, 1000);
       
@@ -537,10 +365,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isTyping,
     isMobileSidebarOpen,
     setIsMobileSidebarOpen,
-    startCycleCheck,
-    isCycleActive,
-    handleCycleResponse,
-    cycleStep
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
