@@ -15,6 +15,10 @@ interface ChatContextType {
   isTyping: boolean;
   isMobileSidebarOpen: boolean;
   setIsMobileSidebarOpen: (isOpen: boolean) => void;
+  startCycleCheck: () => void;
+  isCycleActive: boolean;
+  handleCycleResponse: (isYes: boolean) => void;
+  cycleStep: number;
 }
 
 // Create the context
@@ -27,6 +31,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isTyping, setIsTyping] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isCreatingNewSession, setIsCreatingNewSession] = useState(false);
+  const [isCycleActive, setIsCycleActive] = useState(false);
+  const [cycleStep, setCycleStep] = useState(0);
 
   // Initialize a session on first load
   useEffect(() => {
@@ -39,6 +45,92 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const currentSession = currentSessionId 
     ? sessions.find(session => session.id === currentSessionId) || null 
     : null;
+
+  // Start the cycle check process
+  const startCycleCheck = () => {
+    if (!currentSession) return;
+    
+    setIsCycleActive(true);
+    setCycleStep(0);
+  };
+
+  // Handle cycle check responses (Yes/No)
+  const handleCycleResponse = (isYes: boolean) => {
+    if (!currentSession) return;
+    
+    if (cycleStep === 0) {
+      // First question is about the specific feeling description
+      if (isYes) {
+        // User still feels the same, continue cycle
+        setCycleStep(1);
+      } else {
+        // User doesn't feel the same anymore, go to next step in conversation
+        setIsCycleActive(false);
+        
+        // Add a bot message to continue the conversation
+        const nextQuestion = "How are you feeling about this now?";
+        const botMessageId = Date.now().toString();
+        
+        setSessions(prev => prev.map(session => {
+          if (session.id === currentSessionId) {
+            return {
+              ...session,
+              currentStep: 3, // Move to the step asking how they feel now
+              messages: [
+                ...session.messages,
+                {
+                  id: botMessageId,
+                  role: 'bot',
+                  content: nextQuestion,
+                  timestamp: new Date(),
+                }
+              ],
+              updatedAt: new Date(),
+            };
+          }
+          return session;
+        }));
+      }
+    } else if (cycleStep === 1) {
+      // Second question is about the initial feeling
+      if (isYes) {
+        // User still has the initial feeling, restart the conversation from that point
+        setIsCycleActive(false);
+        
+        // Get their initial feeling
+        const initialFeeling = currentSession.path === 'feeling' && currentSession.messages.length > 2 
+          ? currentSession.messages[2].content 
+          : 'this';
+        
+        // Add a bot message to continue the conversation
+        const nextQuestion = `Feel ${initialFeeling} — what does ${initialFeeling} feel like?`;
+        const botMessageId = Date.now().toString();
+        
+        setSessions(prev => prev.map(session => {
+          if (session.id === currentSessionId) {
+            return {
+              ...session,
+              currentStep: 2, // Move back to asking what the feeling feels like
+              messages: [
+                ...session.messages,
+                {
+                  id: botMessageId,
+                  role: 'bot',
+                  content: nextQuestion,
+                  timestamp: new Date(),
+                }
+              ],
+              updatedAt: new Date(),
+            };
+          }
+          return session;
+        }));
+      } else {
+        // User doesn't have initial feeling anymore, just end the cycle
+        setIsCycleActive(false);
+      }
+    }
+  };
 
   // Create a new chat session
   const createNewSession = () => {
@@ -75,6 +167,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const switchSession = (sessionId: string) => {
     setCurrentSessionId(sessionId);
     setIsMobileSidebarOpen(false);
+    setIsCycleActive(false); // Reset cycle state when switching sessions
   };
 
   // Select conversation path (feeling or goal)
@@ -365,6 +458,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isTyping,
     isMobileSidebarOpen,
     setIsMobileSidebarOpen,
+    startCycleCheck,
+    isCycleActive,
+    handleCycleResponse,
+    cycleStep
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

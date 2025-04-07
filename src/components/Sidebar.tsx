@@ -47,10 +47,21 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobile = false }) => {
   const getLastBotQuestion = (): string | null => {
     if (!currentSession || !isCycleActive) return null;
     
-    const botMessages = currentSession.messages.filter(msg => msg.role === 'bot');
-    if (botMessages.length === 0) return null;
+    if (cycleStep === 0) {
+      // Get the description of what the feeling feels like
+      const userMessages = currentSession.messages.filter(msg => msg.role === 'user');
+      if (userMessages.length < 2) return null;
+      
+      return `Do you still feel ${userMessages[1].content}?`;
+    } else if (cycleStep === 1) {
+      // Get the initial feeling
+      const userMessages = currentSession.messages.filter(msg => msg.role === 'user');
+      if (userMessages.length < 1) return null;
+      
+      return `Do you still feel ${userMessages[0].content}?`;
+    }
     
-    return botMessages[botMessages.length - 1].content;
+    return null;
   };
 
   return (
