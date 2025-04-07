@@ -65,12 +65,12 @@ export default {
 				},
 				// Custom colors for our chat app
 				bot: {
-					DEFAULT: '#f1f3f4',
-					light: '#f1f3f4',
+					DEFAULT: '#f7f2ff',
+					light: '#f7f2ff',
 				},
 				user: {
-					DEFAULT: '#1a73e8',
-					dark: '#1a73e8',
+					DEFAULT: '#0d9488',
+					dark: '#0d9488',
 				}
 			},
 			borderRadius: {
