@@ -344,11 +344,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return session;
       }));
       
-      // After sending goodbye message, create a new session automatically
-      setTimeout(() => {
-        createNewSession();
-      }, 1500);
-      
       return true;
     }
   };
